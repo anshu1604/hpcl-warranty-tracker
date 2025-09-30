@@ -149,7 +149,7 @@ function App() {
             headerTitleAlign: 'center',
             headerTitle: () => (
               <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000' }}>
-                HPCL warranty app
+                HPCL Warranty App
               </Text>
             ),
             headerBackVisible:

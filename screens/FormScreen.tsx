@@ -10,6 +10,7 @@ import {
   Platform,
   Modal,
   Image,
+  Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -19,7 +20,7 @@ import axios from 'axios';
 import { Google_Sheet_Creds } from '../sheetCredentials';
 import { SHEET_ACTIONS, USER_ROLES } from '../helper/constant';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { uploadImageToCloudinary } from '../helper';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 
@@ -289,27 +290,36 @@ export function FormScreen({ navigation }: Props) {
   };
 
   const handleUploadImages = () => {
-    launchImageLibrary(
+    Alert.alert('Upload Images', 'Choose an option', [
       {
-        mediaType: 'photo',
-        selectionLimit: 5, // Max 5 images
+        text: 'Take Photo',
+        onPress: () => launchCamera({ mediaType: 'photo' }, handleResponse),
       },
-      response => {
-        if (response.assets) {
-          const selectedUris = response.assets
-            .map(asset => asset.uri)
-            .filter(Boolean) as string[];
-
-          if (selectedUris.length + imageUris.length > 5) {
-            // alert('You can upload a maximum of 5 photos');
-            return;
-          }
-
-          setImageUris(prev => [...prev, ...selectedUris]);
-          setErrors(prev => ({ ...prev, images: '' })); // Clear image errors
-        }
+      {
+        text: 'Choose from Gallery',
+        onPress: () =>
+          launchImageLibrary(
+            { mediaType: 'photo', selectionLimit: 5 },
+            handleResponse,
+          ),
       },
-    );
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleResponse = (response: any) => {
+    if (response.assets) {
+      const selectedUris = response.assets
+        .map((asset: any) => asset.uri)
+        .filter(Boolean) as string[];
+
+      if (selectedUris.length + imageUris.length > 5) {
+        return;
+      }
+
+      setImageUris(prev => [...prev, ...selectedUris]);
+      setErrors(prev => ({ ...prev, images: '' }));
+    }
   };
 
   return (
