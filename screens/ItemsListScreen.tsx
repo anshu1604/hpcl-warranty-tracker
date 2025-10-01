@@ -17,11 +17,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { USER_ROLES } from '../helper/constant';
 import { parseDate } from '../helper';
 import { ScreenWrapper } from '../components/ScreenWrapper';
+import CopyButton from '../components/CopyButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ItemsList'>;
 
 export const ItemsListScreen: React.FC<Props> = ({ route }) => {
-  const { outletName, workType, make, warrantyTillDate, vendor } = route.params;
+  const { outletName, workType, make, warrantyTillDate, vendor, otherMake } =
+    route.params;
   const [itemsData, setItemsData] = useState<string[][]>([]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [approveLoader, setApproveLoader] = useState<{
@@ -50,78 +52,92 @@ export const ItemsListScreen: React.FC<Props> = ({ route }) => {
 
       let filteredItems = allItems;
 
-      // Filter by outlet
-      if (outletName && outletName.trim() !== '') {
-        filteredItems = allItems.filter(item => item[3] === outletName);
-      }
+      if (!otherMake) {
+        // Filter by outlet
+        if (outletName && outletName.trim() !== '') {
+          filteredItems = allItems.filter(item => item[3] === outletName);
+        }
 
-      // Filter by workType
-      if (workType && workType.trim() !== '') {
-        filteredItems = filteredItems.filter(item => item[4] === workType);
-      }
+        // Filter by workType
+        if (workType && workType.trim() !== '') {
+          filteredItems = filteredItems.filter(item => item[4] === workType);
+        }
 
-      // Filter by make
-      if (make && make.trim() !== '') {
-        filteredItems = filteredItems.filter(item => item[5] === make);
-      }
+        // Filter by make
+        if (make && make.trim() !== '') {
+          filteredItems = filteredItems.filter(item => item[5] === make);
+        }
 
-      // Filter by warrantyTillDate
-      if (warrantyTillDate && warrantyTillDate.trim() !== '') {
-        const selectedDate = parseDate(warrantyTillDate); // Convert to Date
-        filteredItems = filteredItems.filter(item => {
-          const itemDate = parseDate(item[13]); // Index 11 has warranty date
-          return itemDate <= selectedDate; // Include only items within date
-        });
-      }
+        // Filter by warrantyTillDate
+        if (warrantyTillDate && warrantyTillDate.trim() !== '') {
+          const selectedDate = parseDate(warrantyTillDate); // Convert to Date
+          filteredItems = filteredItems.filter(item => {
+            const itemDate = parseDate(item[13]); // Index 11 has warranty date
+            return itemDate <= selectedDate; // Include only items within date
+          });
+        }
 
-      // Filter by user role
-      if (userId && userRole !== USER_ROLES.HPCL) {
-        if (userRole === USER_ROLES.VENDOR) {
-          filteredItems = filteredItems.filter(
-            item => item[item.length - 2] === userId,
-          );
-        } else {
-          const [users, outlets] = await Promise.all([
-            axios.get(Google_Sheet_Creds.userList),
-            axios.get(Google_Sheet_Creds.outletMasterData),
-          ]);
-          const usersData: Array<Array<string>> = (
-            users?.data.values || []
-          ).slice(1);
-          const outletData: Array<Array<string>> = (
-            outlets.data.values || []
-          ).slice(1);
-          let dealerOutlets: string = '';
-          if (usersData && usersData.length > 0) {
-            usersData.forEach(user => {
-              if (userId === user[0]) dealerOutlets = user[7];
-            });
-          }
-
-          // Parse dealerOutlets to array of IDs
-          const dealerOutletIds: string[] = dealerOutlets
-            ? JSON.parse(dealerOutlets).map((id: number) => id.toString())
-            : [];
-
-          // Map dealerOutletIds to outlet names
-          const allowedOutletNames: string[] = outletData
-            .filter(outlet => dealerOutletIds.includes(outlet[0])) // outlet[0] = ID
-            .map(outlet => outlet[1]); // outlet[1] = name
-
-          // Filter items based on outlet names
-          if (allowedOutletNames.length > 0) {
+        // Filter by user role
+        if (userId && userRole !== USER_ROLES.HPCL) {
+          if (userRole === USER_ROLES.VENDOR) {
             filteredItems = filteredItems.filter(
-              item => allowedOutletNames.includes(item[3]), // item[3] = outlet name
+              item => item[item.length - 2] === userId,
             );
+          } else {
+            const [users, outlets] = await Promise.all([
+              axios.get(Google_Sheet_Creds.userList),
+              axios.get(Google_Sheet_Creds.outletMasterData),
+            ]);
+            const usersData: Array<Array<string>> = (
+              users?.data.values || []
+            ).slice(1);
+            const outletData: Array<Array<string>> = (
+              outlets.data.values || []
+            ).slice(1);
+            let dealerOutlets: string = '';
+            if (usersData && usersData.length > 0) {
+              usersData.forEach(user => {
+                if (userId === user[0]) dealerOutlets = user[7];
+              });
+            }
+
+            // Parse dealerOutlets to array of IDs
+            const dealerOutletIds: string[] = dealerOutlets
+              ? JSON.parse(dealerOutlets).map((id: number) => id.toString())
+              : [];
+
+            // Map dealerOutletIds to outlet names
+            const allowedOutletNames: string[] = outletData
+              .filter(outlet => dealerOutletIds.includes(outlet[0])) // outlet[0] = ID
+              .map(outlet => outlet[1]); // outlet[1] = name
+
+            // Filter items based on outlet names
+            if (allowedOutletNames.length > 0) {
+              filteredItems = filteredItems.filter(
+                item => allowedOutletNames.includes(item[3]), // item[3] = outlet name
+              );
+            }
           }
+          setShowApproveButton(false);
+        } else {
+          // Filter by vendor
+          if (vendor && vendor.trim() !== '') {
+            filteredItems = filteredItems.filter(item => item[17] === vendor);
+          }
+          setShowApproveButton(true);
         }
-        setShowApproveButton(false);
       } else {
-        // Filter by vendor
-        if (vendor && vendor.trim() !== '') {
-          filteredItems = filteredItems.filter(item => item[17] === vendor);
-        }
-        setShowApproveButton(true);
+        // When otherMake is true, show items with make not in master data
+        const masterMakeResponse = await axios.get(
+          Google_Sheet_Creds.makeMasterData,
+        );
+        const masterMakes: Array<Array<string>> = (
+          masterMakeResponse.data.values || []
+        ).slice(1);
+        const masterMakeNames = masterMakes.map(make => make[1]); // Assuming name is in 2nd column
+        filteredItems = filteredItems.filter(
+          item => !masterMakeNames.includes(item[5]),
+        );
       }
       setItemsData(filteredItems);
     } catch (error) {
@@ -298,9 +314,17 @@ export const ItemsListScreen: React.FC<Props> = ({ route }) => {
                 {isExpanded && (
                   <View style={styles.expandSection}>
                     <Text style={styles.expandItem}>OEM: {oemName}</Text>
-                    <Text style={styles.expandItem}>
-                      OEM Toll Free: {oemTollFree}
-                    </Text>
+                    {/* Fixed row for OEM Toll Free + Copy button */}
+                    <View style={styles.expandRow}>
+                      <Text style={styles.expandItem}>
+                        OEM Toll Free: {oemTollFree}
+                      </Text>
+                      <CopyButton
+                        textToCopy={oemTollFree}
+                        style={styles.copyButtonSmall}
+                        textStyle={styles.copyIcon}
+                      />
+                    </View>
                     <Text style={styles.expandItem}>
                       P.O Number: {poNumber}
                     </Text>
@@ -514,5 +538,21 @@ const styles = StyleSheet.create({
     color: '#C62828', // dark red text
     fontSize: 12,
     fontWeight: '600',
+  },
+  expandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  copyButtonSmall: {
+    padding: 4,
+    marginLeft: 6,
+    borderRadius: 6,
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  copyIcon: {
+    fontSize: 14,
   },
 });

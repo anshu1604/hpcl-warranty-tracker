@@ -37,21 +37,26 @@ export function LoginScreen({ navigation }: Props) {
   };
 
   const validatePassword = (password: string) => {
-    const minLength = password.length >= 10;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    // const minLength = password.length >= 10;
+    // const hasUpperCase = /[A-Z]/.test(password);
+    // const hasLowerCase = /[a-z]/.test(password);
+    // const hasNumber = /[0-9]/.test(password);
+    // const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    // return {
+    //   isValid:
+    //     minLength &&
+    //     hasUpperCase &&
+    //     hasLowerCase &&
+    //     hasNumber &&
+    //     hasSpecialChar,
+    //   error:
+    //     'Password must be at least 10 characters and contain uppercase, lowercase, number and special character',
+    // };
 
     return {
-      isValid:
-        minLength &&
-        hasUpperCase &&
-        hasLowerCase &&
-        hasNumber &&
-        hasSpecialChar,
-      error:
-        'Password must be at least 10 characters and contain uppercase, lowercase, number and special character',
+      isValid: true,
+      error: '',
     };
   };
 
@@ -89,12 +94,14 @@ export function LoginScreen({ navigation }: Props) {
           role: string;
           userID: string;
           username: string;
+          contactNumber: string;
         } = {
           fullName: '',
           email: '',
           role: '',
           userID: '',
           username: '',
+          contactNumber: '',
         };
 
         users.forEach((user: Array<string>) => {
@@ -103,6 +110,7 @@ export function LoginScreen({ navigation }: Props) {
               userID: user[0],
               username: user[1],
               fullName: user[2],
+              contactNumber: user[3],
               email: user[4],
               role: user[6], // Assuming role is in the 4th column
             };
@@ -119,6 +127,7 @@ export function LoginScreen({ navigation }: Props) {
               role: userDetails.role,
               userID: userDetails.userID,
               username: userDetails.username,
+              contactNumber: userDetails.contactNumber,
               isLoggedIn: true,
             }),
           );

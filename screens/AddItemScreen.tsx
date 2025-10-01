@@ -18,21 +18,27 @@ const initialFormData: FormDataType = {
   itemName: '',
   make: [],
   warranty: '',
+  workTypeName: '',
+  workTypeID: '',
 };
 
 type FormDataType = {
   itemName: string;
   make: Array<string>;
   warranty: string;
+  workTypeName: string;
+  workTypeID: string;
 };
 
 const AddItemScreen = () => {
   const [makes, setMakes] = useState<Array<Array<string>>>([]);
   const [items, setItems] = useState<Array<Array<string>>>([]);
+  const [workTypes, setWorkTypes] = useState<Array<Array<string>>>([]);
   const [formData, setFormData] = useState<FormDataType>({
     ...initialFormData,
   });
   const [showMakePicker, setShowMakePicker] = useState<boolean>(false);
+  const [showWorkTypePicker, setShowWorkTypePicker] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [expandedCards, setExpandedCards] = useState<{
     [key: string]: boolean;
@@ -41,19 +47,23 @@ const AddItemScreen = () => {
     itemName?: string;
     make?: string;
     warranty?: string;
+    workType?: string;
   }>({});
 
   useEffect(() => {
     const fetchMasterData = async () => {
       try {
-        const [makesList, itemsList] = await Promise.all([
+        const [makesList, itemsList, workTypeList] = await Promise.all([
           axios.get(Google_Sheet_Creds.makeMasterData),
           axios.get(Google_Sheet_Creds.itemMasterData),
+          axios.get(Google_Sheet_Creds.workTypeMasterData),
         ]);
         const makeData = (makesList.data.values || []).slice(1); // remove header
         const itemData = (itemsList.data.values || []).slice(1); // remove header
+        const workTypeData = (workTypeList.data.values || []).slice(1); // remove header
         setMakes(makeData);
         setItems(itemData);
+        setWorkTypes(workTypeData);
       } catch (error) {
         console.error('Error fetching make data:', error);
       }
@@ -68,6 +78,8 @@ const AddItemScreen = () => {
     if (formData.make.length === 0)
       newErrors.make = 'At least one Make is required';
     if (!formData.warranty.trim()) newErrors.warranty = 'Warranty is required';
+    if (!formData.workTypeID.trim())
+      newErrors.workType = 'Work Type is required';
 
     setErrors(newErrors);
 
@@ -86,6 +98,7 @@ const AddItemScreen = () => {
           itemName: formData.itemName,
           warranty: formData.warranty,
           make: JSON.stringify(makeIds),
+          workType: formData.workTypeID,
         };
 
         // Send to backend
@@ -97,6 +110,7 @@ const AddItemScreen = () => {
           formData.itemName,
           formData.warranty,
           JSON.stringify(makeIds),
+          formData.workTypeID,
         ];
         setItems(prev => [newItem, ...prev]);
 
@@ -132,6 +146,28 @@ const AddItemScreen = () => {
           {errors.itemName && (
             <Text style={styles.errorText}>{errors.itemName}</Text>
           )}
+
+          {/* Type of Work Input */}
+          <Text style={styles.label}>
+            Type of Work <Text style={styles.required}>*</Text>
+          </Text>
+          <TouchableOpacity
+            style={[styles.input]}
+            onPress={() => setShowWorkTypePicker(true)}
+          >
+            <Text
+              style={
+                formData.workTypeID
+                  ? styles.dropdownText
+                  : styles.placeholderText
+              }
+            >
+              {formData.workTypeName || 'Select Type of Work'}
+            </Text>
+          </TouchableOpacity>
+          {errors.workType ? (
+            <Text style={styles.errorText}>{errors.workType}</Text>
+          ) : null}
 
           {/* Make Input */}
           <Text style={styles.label}>
@@ -189,7 +225,6 @@ const AddItemScreen = () => {
           />
 
           {/* Make Picker Modal */}
-          {/* Make Picker Modal */}
           <Modal visible={showMakePicker} transparent animationType="slide">
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
@@ -239,6 +274,53 @@ const AddItemScreen = () => {
                       </TouchableOpacity>
                     );
                   })}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Work Type Picker Modal */}
+          <Modal visible={showWorkTypePicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Type of Work</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowWorkTypePicker(false)}
+                    style={styles.closeButton}
+                  >
+                    <Text style={styles.closeButtonText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.optionsList}>
+                  {workTypes.map(type => (
+                    <TouchableOpacity
+                      key={type[0]}
+                      style={[
+                        styles.optionItem,
+                        formData.workTypeName === type[1] &&
+                          styles.selectedOption,
+                      ]}
+                      onPress={() => {
+                        setFormData({
+                          ...formData,
+                          workTypeID: type[0],
+                          workTypeName: type[1],
+                        });
+                        setShowWorkTypePicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          formData.workTypeName === type[1] &&
+                            styles.selectedOptionText,
+                        ]}
+                      >
+                        {type[1]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </ScrollView>
               </View>
             </View>
@@ -300,6 +382,23 @@ const AddItemScreen = () => {
                     {/* Card Body (expandable) */}
                     {isExpanded && (
                       <View style={styles.cardBody}>
+                        <Text style={styles.cardLabel}>Work Type</Text>
+                        <View style={styles.cardRow}>
+                          <View style={styles.badgeContainer}>
+                            {workTypes.map((workType, idx) => {
+                              if (workType[0] === item[4]) {
+                                return (
+                                  <View key={idx} style={styles.badge}>
+                                    <Text style={styles.badgeText}>
+                                      {workType[1]}
+                                    </Text>
+                                  </View>
+                                );
+                              }
+                            })}
+                          </View>
+                        </View>
+                        <Text style={styles.cardLabel}>Makes</Text>
                         <View style={styles.cardRow}>
                           <View style={styles.badgeContainer}>
                             {makeNames.split(', ').map((name, idx) => (

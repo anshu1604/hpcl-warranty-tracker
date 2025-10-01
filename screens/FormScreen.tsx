@@ -23,6 +23,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { uploadImageToCloudinary } from '../helper';
 import { ScreenWrapper } from '../components/ScreenWrapper';
+import SuccessPopup from '../components/SuccessPopup';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Form'>;
 
@@ -79,6 +80,24 @@ export function FormScreen({ navigation }: Props) {
   const [showItemNamePicker, setShowItemNamePicker] = useState(false);
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [supplyType, setSupplyType] = useState<'Vendor' | 'HPCL' | ''>('');
+  const [userRole, setUserRole] = useState<string>(USER_ROLES.VENDOR); // default to Vendor
+  const [showPopup, setShowPopup] = useState(false);
+
+  useEffect(() => {
+    const readUserDataFromStorage = async () => {
+      const data = await AsyncStorage.getItem('user');
+      const userData = JSON.parse(data || '{}');
+      if (userData.role === USER_ROLES.VENDOR) {
+        setFormData(prev => ({
+          ...prev,
+          vendorName: userData.fullName || '',
+          vendorContact: userData.contactNumber || '',
+        }));
+      }
+      setUserRole(userData.role);
+    };
+    readUserDataFromStorage();
+  }, []);
 
   useEffect(() => {
     const getMasterData = async () => {
@@ -119,6 +138,15 @@ export function FormScreen({ navigation }: Props) {
     return MakeList.filter(make => selectedIds.includes(make[0]))
       .map(make => make[1]) // Extract make names
       .filter(Boolean); // Remove empty values
+  };
+
+  const getAvailableItems = (selectedWorkType: string) => {
+    if (!selectedWorkType || !ItemsList.length) return [];
+
+    const filteredItems = ItemsList.filter(
+      item => item[4] === selectedWorkType,
+    );
+    return filteredItems;
   };
 
   const calculateWarrantyTillDate = (installDate: string, warranty: string) => {
@@ -279,6 +307,7 @@ export function FormScreen({ navigation }: Props) {
         });
         setFormData({ ...InitialFormData });
         setImageUris([]);
+        setShowPopup(true);
       } catch (error) {
         console.error('Error saving data:', error);
       } finally {
@@ -366,6 +395,80 @@ export function FormScreen({ navigation }: Props) {
             ))}
           </View>
 
+          {/* Type of Work Input */}
+          <Text style={styles.label}>
+            Type of Work <Text style={styles.required}>*</Text>
+          </Text>
+          <TouchableOpacity
+            style={[styles.input, errors.typeOfWork ? styles.inputError : null]}
+            onPress={() => setShowWorkTypePicker(true)}
+          >
+            <Text
+              style={
+                formData.typeOfWork
+                  ? styles.dropdownText
+                  : styles.placeholderText
+              }
+            >
+              {formData.typeOfWork || 'Select Type of Work'}
+            </Text>
+          </TouchableOpacity>
+          {errors.typeOfWork ? (
+            <Text style={styles.errorText}>{errors.typeOfWork}</Text>
+          ) : null}
+
+          {/* Work Type Picker Modal */}
+          <Modal visible={showWorkTypePicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Type of Work</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowWorkTypePicker(false)}
+                    style={styles.closeButton}
+                  >
+                    <Text style={styles.closeButtonText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.optionsList}>
+                  {workTypeList.map(type => (
+                    <TouchableOpacity
+                      key={type[0]}
+                      style={[
+                        styles.optionItem,
+                        formData.typeOfWork === type[1] &&
+                          styles.selectedOption,
+                      ]}
+                      onPress={() => {
+                        setFormData({
+                          ...formData,
+                          typeOfWork: type[1],
+                          itemName: '',
+                          make: '',
+                          customMake: '',
+                          warranty: '',
+                          warrantyTillDate: '',
+                        });
+                        setErrors({ ...errors, typeOfWork: '' });
+                        setShowWorkTypePicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          formData.typeOfWork === type[1] &&
+                            styles.selectedOptionText,
+                        ]}
+                      >
+                        {type[1]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+
           {/* Item Name Dropdown */}
           <Text style={styles.label}>
             Item Name <Text style={styles.required}>*</Text>
@@ -400,45 +503,55 @@ export function FormScreen({ navigation }: Props) {
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.optionsList}>
-                  {ItemsList.map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.optionItem,
-                        formData.itemName === item[1] && styles.selectedOption,
-                      ]}
-                      onPress={() => {
-                        const selectedItem = item;
-                        const itemId = selectedItem[0]; // Get the item ID from index 0
-
-                        setFormData(prev => {
-                          const updated = {
-                            ...prev,
-                            itemName: selectedItem[1],
-                            warranty: selectedItem[2] || 'N/A',
-                            make: '',
-                          };
-                          updated.warrantyTillDate = calculateWarrantyTillDate(
-                            updated.dateOfInstallation,
-                            updated.warranty,
-                          );
-                          return updated;
-                        });
-                        setErrors({ ...errors, itemName: '', make: '' });
-                        setShowItemNamePicker(false);
-                      }}
-                    >
-                      <Text
+                  {(() => {
+                    const selectedWorkType = workTypeList.find(
+                      item => item[1] === formData.typeOfWork,
+                    );
+                    const availableItems = selectedWorkType
+                      ? getAvailableItems(selectedWorkType[0])
+                      : [];
+                    return [...availableItems].map((item, index) => (
+                      <TouchableOpacity
+                        key={index}
                         style={[
-                          styles.optionText,
+                          styles.optionItem,
                           formData.itemName === item[1] &&
-                            styles.selectedOptionText,
+                            styles.selectedOption,
                         ]}
+                        onPress={() => {
+                          const selectedItem = item;
+                          const itemId = selectedItem[0]; // Get the item ID from index 0
+
+                          setFormData(prev => {
+                            const updated = {
+                              ...prev,
+                              itemName: selectedItem[1],
+                              warranty: selectedItem[2] || 'N/A',
+                              make: '',
+                            };
+                            updated.warrantyTillDate =
+                              calculateWarrantyTillDate(
+                                updated.dateOfInstallation,
+                                updated.warranty,
+                              );
+                            return updated;
+                          });
+                          setErrors({ ...errors, itemName: '', make: '' });
+                          setShowItemNamePicker(false);
+                        }}
                       >
-                        {item[1]}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={[
+                            styles.optionText,
+                            formData.itemName === item[1] &&
+                              styles.selectedOptionText,
+                          ]}
+                        >
+                          {item[1]}
+                        </Text>
+                      </TouchableOpacity>
+                    ));
+                  })()}
                 </ScrollView>
               </View>
             </View>
@@ -545,72 +658,6 @@ export function FormScreen({ navigation }: Props) {
                         ]}
                       >
                         {outlet[1]}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
-
-          {/* Type of Work Input */}
-          <Text style={styles.label}>
-            Type of Work <Text style={styles.required}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[styles.input, errors.typeOfWork ? styles.inputError : null]}
-            onPress={() => setShowWorkTypePicker(true)}
-          >
-            <Text
-              style={
-                formData.typeOfWork
-                  ? styles.dropdownText
-                  : styles.placeholderText
-              }
-            >
-              {formData.typeOfWork || 'Select Type of Work'}
-            </Text>
-          </TouchableOpacity>
-          {errors.typeOfWork ? (
-            <Text style={styles.errorText}>{errors.typeOfWork}</Text>
-          ) : null}
-
-          {/* Work Type Picker Modal */}
-          <Modal visible={showWorkTypePicker} transparent animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Select Type of Work</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowWorkTypePicker(false)}
-                    style={styles.closeButton}
-                  >
-                    <Text style={styles.closeButtonText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={styles.optionsList}>
-                  {workTypeList.map(type => (
-                    <TouchableOpacity
-                      key={type[0]}
-                      style={[
-                        styles.optionItem,
-                        formData.typeOfWork === type[1] &&
-                          styles.selectedOption,
-                      ]}
-                      onPress={() => {
-                        setFormData({ ...formData, typeOfWork: type[1] });
-                        setErrors({ ...errors, typeOfWork: '' });
-                        setShowWorkTypePicker(false);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          formData.typeOfWork === type[1] &&
-                            styles.selectedOptionText,
-                        ]}
-                      >
-                        {type[1]}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -783,12 +830,18 @@ export function FormScreen({ navigation }: Props) {
             style={[
               styles.input,
               errors.vendorName ? styles.inputError : null,
-              supplyType === 'HPCL' && { backgroundColor: '#e0e0e0' }, // greyed out
+              (supplyType === 'HPCL' || userRole === USER_ROLES.VENDOR) && {
+                backgroundColor: '#e0e0e0',
+              }, // greyed out
             ]}
             placeholder="Enter Vendor Name"
             value={formData.vendorName}
-            editable={supplyType !== 'HPCL'} // disable input if HPCL
+            editable={
+              userRole === USER_ROLES.VENDOR ? false : supplyType !== 'HPCL'
+            }
             onChangeText={text => {
+              if (supplyType === 'HPCL' && userRole !== USER_ROLES.VENDOR)
+                return; // prevent editing
               setFormData({ ...formData, vendorName: text });
               setErrors({ ...errors, vendorName: '' });
             }}
@@ -805,11 +858,15 @@ export function FormScreen({ navigation }: Props) {
             style={[
               styles.input,
               errors.vendorContact ? styles.inputError : null,
-              supplyType === 'HPCL' && { backgroundColor: '#e0e0e0' },
+              (supplyType === 'HPCL' || userRole === USER_ROLES.VENDOR) && {
+                backgroundColor: '#e0e0e0',
+              },
             ]}
             placeholder="Enter 10-digit number"
             value={formData.vendorContact}
-            editable={supplyType !== 'HPCL'}
+            editable={
+              userRole === USER_ROLES.VENDOR ? false : supplyType !== 'HPCL'
+            }
             onChangeText={text => {
               setFormData({
                 ...formData,
@@ -935,6 +992,12 @@ export function FormScreen({ navigation }: Props) {
               {isSubmitting ? 'Saving...' : 'Save'}
             </Text>
           </TouchableOpacity>
+          {/* Success Popup */}
+          <SuccessPopup
+            visible={showPopup}
+            onClose={() => setShowPopup(false)}
+            autoClose={true} // set to false if you want manual close
+          />
         </View>
       </KeyboardAwareScrollView>
     </ScreenWrapper>

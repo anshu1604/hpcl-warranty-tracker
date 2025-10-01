@@ -49,6 +49,25 @@ export const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.buttonText}>Retrieve Data</Text>
         </TouchableOpacity>
 
+        {/* Retrieve Data with Other Make*/}
+        {role === USER_ROLES.HPCL && (
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() =>
+              navigation.navigate('ItemsList', {
+                outletName: '',
+                workType: '',
+                make: '',
+                warrantyTillDate: '',
+                vendor: '',
+                otherMake: true,
+              })
+            }
+          >
+            <Text style={styles.buttonText}>Retrieve Data with Other Make</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Add Master Data → Only if role is HPCL */}
         {role === USER_ROLES.HPCL && (
           <TouchableOpacity

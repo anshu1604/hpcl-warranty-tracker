@@ -108,6 +108,7 @@ export const RetrieveDataScreen: React.FC<Props> = ({ navigation }) => {
       make: formData.make,
       warrantyTillDate: formData.warrantyTillDate,
       vendor: vendorsList[formData.vendor] || '',
+      otherMake: false,
     });
     setFormData({ ...InitialFormData });
   };
